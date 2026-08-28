@@ -63,10 +63,32 @@ CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请
 CloudProductManager；需账号凭据 + `CLI/<ver> CodeBuddy/<ver>` UA），并取
 cli agent 的模型白名单过滤出可对话模型，**内存热替换、无需重启 dsh**：
 
-- 上下文窗口 / 最大输出按上游真实数据；
+- 上下文窗口 / 最大输出以**联网核实的官方规格**为准（见下节），
+  内置映射缺失的模型才回退上游数据；
 - 默认每 6 小时刷新（`DSH_CODEBUDDY_MODELS_REFRESH_H`）；拉取失败沿用旧目录，
   连续失败按 30s→5min 指数退避（参照官方 ModelsProductProvider）；
   `DSH_CODEBUDDY_DISABLE_MODEL_FETCH=1` 完全关闭。
+
+### 上下文 / 输出 / 思考档位：联网核实，不信 CodeBuddy 默认
+
+CodeBuddy `/v3/config` 给出的数值普遍偏保守甚至错误，本插件按各厂商
+官方文档逐一核实后内置（`BUILTIN_CAPABILITIES`，2026-08-28）：
+
+| 模型 | 上游声称 | 核实值（官方规格） |
+| --- | --- | --- |
+| `hy3` / `hy3-x` | 192K / 64K | **256K 上下文 / 128K 输出** |
+| `hy4-preview(-x)` | 1M / 64K | 1M 上下文（770B 参数，输出维持 64K） |
+| `deepseek-v4-pro` / `-flash` | 1M / 50K | **1M 上下文 / 384K 输出** |
+| `glm-5.3` / `-flash` / `glm-5.2` | 1M / 48K（flash 32K） | **1M 上下文 / 128K 输出**，档位 low/high/max |
+| `glm-5.1` | 200K / 48K | **202745 上下文 / 128K 输出** |
+| `glm-5v-turbo` | 200K / 64K | 200K 上下文 / **128K 输出** |
+| `kimi-k3-1` | 1M | 1M 上下文，档位 low/high/max（默认 max） |
+| `kimi-k2.7` / `-k2.6` | 256K | 256K 上下文（k2.7 思考常开，k2.6 可关） |
+| `minimax-m3` | 512K / 128K | **1M 上下文**（稀疏注意力） |
+| `minimax-m2.7` | 200K / 48K | 204800 上下文 |
+
+优先级：`models.json` 显式声明 > 内置核实值 > 上游 `maxInputTokens` /
+`maxOutputTokens`。白名单外的新模型无内置值时仍自动回退上游数据。
 
 ### 能力位全自动（思考档位 / 识图，无需手工配置）
 
@@ -84,9 +106,9 @@ cli agent 的模型白名单过滤出可对话模型，**内存热替换、无�
 ### models.json（静态兜底 + 覆盖层）
 
 目录拉不到（无会话/断网/关闭拉取）时用它；与上游同名的条目其
-`description` 等声明优先。能力位（`reasoningEfforts` / `input`）不写即
-自动按内置映射补齐；显式写出（含 `"reasoningEfforts": null` = 关闭）
-则作为人工覆盖生效。
+`description` 等声明优先。能力位（`reasoningEfforts` / `input`）与
+`contextWindow` / `maxTokens` 不写即自动按内置核实值补齐；显式写出
+（含 `"reasoningEfforts": null` = 关闭）则作为人工覆盖生效。
 
 默认收录（来自 CodeBuddy CLI 的模型目录）：
 `hy3`、`deepseek-v4-pro`、`deepseek-v4-flash`、`kimi-k3-1`、`kimi-k2.7`、`kimi-k2.6`、
