@@ -12,16 +12,18 @@ zen 用 API key，本插件用**账号会话 JWT**。
 
 你日常 `codebuddy`（TUI）只需授权一次，是因为登录拿到的是 Keycloak JWT
 （`iss=https://www.codebuddy.cn/auth/realms/copilot`，60 天有效、90 天刷新窗口），
-持久化在：
+持久化目录随系统自动定位（linux 还兼容 `XDG_DATA_HOME`）：
 
 ```
-win32 : %LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\<authId>.info
-darwin: ~/Library/Application Support/CodeBuddyExtension/Data/Public/auth/<authId>.info
-linux : ~/.local/share/CodeBuddyExtension/Data/Public/auth/<authId>.info
+win32 : %LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\
+darwin: ~/Library/Application Support/CodeBuddyExtension/Data/Public/auth/
+linux : ~/.local/share/CodeBuddyExtension/Data/Public/auth/
 ```
 
-默认 `<authId> = Tencent-Cloud.coding-copilot`（CLI/TUI 会话）；
-WorkBuddy 桌面宿主对应 `workbuddy-desktop`。
+**自动发现（无需配置）**：插件扫描目录里全部 `*.info` 会话（每个宿主一个，如
+`Tencent-Cloud.coding-copilot`=CLI/TUI、`workbuddy-desktop`=WorkBuddy 桌面），
+按健康度自动择优——未过期优先于仅可刷新，同级取剩余有效期长者；损坏/加密文件自动跳过。
+只有显式设置 `DSH_CODEBUDDY_AUTH_ID` 才锁定单一文件。换系统、换宿主、多会话并存都零配置。
 
 CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请求注入
 `Authorization: Bearer <accessToken>` + `X-User-Id` 等；本插件做的是同一件事。
@@ -36,7 +38,7 @@ CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请
 
 | 变量 | 作用 | 默认 |
 | --- | --- | --- |
-| `DSH_CODEBUDDY_AUTH_ID` | 会话文件 `<authId>.info` 的 id | `Tencent-Cloud.coding-copilot` |
+| `DSH_CODEBUDDY_AUTH_ID` | 可选：锁定单一 `<authId>.info`；**不设则自动发现最优会话** | 未设 = 自动发现 |
 | `DSH_CODEBUDDY_BASE` | 上游网关 | `https://copilot.tencent.com` |
 | `DSH_CODEBUDDY_ACCESS_TOKEN` | 手工注入 accessToken，绕开会话文件 | - |
 | `DSH_CODEBUDDY_USER_ID` / `DSH_CODEBUDDY_DOMAIN` | 配合手工 token 使用 | - |
