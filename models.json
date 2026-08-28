@@ -4,86 +4,73 @@
       "id": "hy3",
       "name": "Hunyuan 3",
       "contextWindow": 190000,
-      "description": "腾讯混元 Hy3（CodeBuddy 主力档，深度思考）",
-      "reasoningEfforts": ["low", "high"]
+      "description": "腾讯混元 Hy3（CodeBuddy 主力档，深度思考）"
     },
     {
       "id": "deepseek-v4-pro",
       "name": "DeepSeek V4 Pro",
       "contextWindow": 128000,
-      "description": "DeepSeek V4 Pro（推理 + 工具调用）",
-      "reasoningEfforts": ["low", "high"]
+      "description": "DeepSeek V4 Pro（推理 + 工具调用）"
     },
     {
       "id": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",
       "contextWindow": 128000,
-      "description": "DeepSeek V4 Flash（快速档）",
-      "reasoningEfforts": ["low", "high"]
+      "description": "DeepSeek V4 Flash（快速档）"
     },
     {
       "id": "kimi-k3-1",
       "name": "Kimi K3.1",
       "contextWindow": 256000,
-      "description": "月之暗面 Kimi K3.1",
-      "reasoningEfforts": null
+      "description": "月之暗面 Kimi K3.1"
     },
     {
       "id": "kimi-k2.7",
       "name": "Kimi K2.7",
       "contextWindow": 128000,
-      "description": "月之暗面 Kimi K2.7",
-      "reasoningEfforts": null
+      "description": "月之暗面 Kimi K2.7"
     },
     {
       "id": "kimi-k2.6",
       "name": "Kimi K2.6",
       "contextWindow": 128000,
-      "description": "月之暗面 Kimi K2.6",
-      "reasoningEfforts": null
+      "description": "月之暗面 Kimi K2.6"
     },
     {
       "id": "glm-5.3",
       "name": "GLM 5.3",
       "contextWindow": 128000,
-      "description": "智谱 GLM 5.3",
-      "reasoningEfforts": null
+      "description": "智谱 GLM 5.3"
     },
     {
       "id": "glm-5.2",
       "name": "GLM 5.2",
       "contextWindow": 128000,
-      "description": "智谱 GLM 5.2",
-      "reasoningEfforts": null
+      "description": "智谱 GLM 5.2"
     },
     {
       "id": "glm-5.1",
       "name": "GLM 5.1",
       "contextWindow": 128000,
-      "description": "智谱 GLM 5.1",
-      "reasoningEfforts": null
+      "description": "智谱 GLM 5.1"
     },
     {
       "id": "glm-5v-turbo",
       "name": "GLM 5V Turbo",
       "contextWindow": 128000,
-      "description": "智谱 GLM 5V Turbo（多模态视觉）",
-      "reasoningEfforts": null,
-      "input": ["text", "image"]
+      "description": "智谱 GLM 5V Turbo（多模态视觉）"
     },
     {
       "id": "minimax-m3",
       "name": "MiniMax M3",
       "contextWindow": 200000,
-      "description": "MiniMax M3",
-      "reasoningEfforts": null
+      "description": "MiniMax M3"
     },
     {
       "id": "minimax-m2.7",
       "name": "MiniMax M2.7",
       "contextWindow": 200000,
-      "description": "MiniMax M2.7",
-      "reasoningEfforts": null
+      "description": "MiniMax M2.7"
     }
   ]
 }

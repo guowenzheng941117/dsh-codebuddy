@@ -63,19 +63,30 @@ CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请
 CloudProductManager；需账号凭据 + `CLI/<ver> CodeBuddy/<ver>` UA），并取
 cli agent 的模型白名单过滤出可对话模型，**内存热替换、无需重启 dsh**：
 
-- 上下文窗口 / 最大输出 / 视觉能力（`supportsImages`）按上游真实数据；
-- reasoning 档位优先用上游 `reasoning.supportedEfforts` 声明
-  （如 `hy4-preview` 仅 `high`、`glm-5.3-flash` 为 `low/high/max`），
-  未声明才回退保守白名单——不会发出上游不收的档位；
+- 上下文窗口 / 最大输出按上游真实数据；
 - 默认每 6 小时刷新（`DSH_CODEBUDDY_MODELS_REFRESH_H`）；拉取失败沿用旧目录，
   连续失败按 30s→5min 指数退避（参照官方 ModelsProductProvider）；
   `DSH_CODEBUDDY_DISABLE_MODEL_FETCH=1` 完全关闭。
 
-`models.json` 是**静态兜底 + 覆盖层**：目录拉不到（无会话/断网/关闭拉取）时
-用它；其中与上游同名的条目，其 `reasoningEfforts` / `description` 声明优先。
-格式与 zen 一致：`id` / `name` / `contextWindow` / `reasoningEfforts`
-（null = 不发该字段）/ `input`（含 `"image"` 且模型支持视觉时走原生多模态
-`image_url`）。
+### 能力位全自动（思考档位 / 识图，无需手工配置）
+
+**思考档位**优先级：`models.json` 显式声明 > 内置能力映射 >
+上游 `reasoning.supportedEfforts` > 推理模型默认全档。内置映射
+（`BUILTIN_CAPABILITIES`）按网关实测 + 各模型族的最大思考程度内置，
+主流推理模型普遍给到 `low/high/max`——**不完全按 CodeBuddy 的保守声明**：
+实测上游声明仅 `high` 的 `hy4-preview` 对 `low/max` 均返回 200 并真实
+产出思考内容，各家族模型 `max` 档全部通过。
+
+**识图**：动态目录直接读上游 `supportsImages` 标识（含
+`disabledMultimodal` 否决）；静态条目由内置映射自动补齐——
+`models.json` 里不再需要手写 `"input": ["text", "image"]`。
+
+### models.json（静态兜底 + 覆盖层）
+
+目录拉不到（无会话/断网/关闭拉取）时用它；与上游同名的条目其
+`description` 等声明优先。能力位（`reasoningEfforts` / `input`）不写即
+自动按内置映射补齐；显式写出（含 `"reasoningEfforts": null` = 关闭）
+则作为人工覆盖生效。
 
 默认收录（来自 CodeBuddy CLI 的模型目录）：
 `hy3`、`deepseek-v4-pro`、`deepseek-v4-flash`、`kimi-k3-1`、`kimi-k2.7`、`kimi-k2.6`、
@@ -108,3 +119,7 @@ cli agent 的模型白名单过滤出可对话模型，**内存热替换、无�
 - `GET /v3/config` 带 Bearer + CLI UA → 200：28 个模型、1 个 cli agent 白名单
   16 个可对话模型；各模型 `maxInputTokens` / `maxOutputTokens` /
   `supportsImages` / `reasoning.supportedEfforts` 能力位齐全
+- `reasoning_effort` 接受度实测（stream 模式）：`hy4-preview`（上游仅声明
+  high）的 `low` / `max`、以及 `glm-5.3` / `deepseek-v4-flash` / `kimi-k3-1` /
+  `minimax-m3` / `glm-5v-turbo` 的 `max` 全部 200 且真实产出思考内容
+  ——网关接受度宽于上游声明（注意：非流式 `stream:false` 一律 11101 拒绝）
