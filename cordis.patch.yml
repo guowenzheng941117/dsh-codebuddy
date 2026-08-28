@@ -1,0 +1,4 @@
+- insert:
+    - id: dsh-codebuddy
+      name: dsh-codebuddy
+      inject: [llm]
