@@ -44,6 +44,9 @@ CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请
 | `DSH_CODEBUDDY_USER_ID` / `DSH_CODEBUDDY_DOMAIN` | 配合手工 token 使用 | - |
 | `DSH_CODEBUDDY_REFRESH_TOKEN` / `DSH_CODEBUDDY_EXPIRES_AT` | 手工 token 也想自动续期时用 | - |
 | `DSH_CODEBUDDY_PREFIX_PATH` | 刷新接口前缀 | `/plugin` |
+| `DSH_CODEBUDDY_MODELS_REFRESH_H` | 动态模型目录刷新周期（小时，最小 1） | `6` |
+| `DSH_CODEBUDDY_DISABLE_MODEL_FETCH` | 置 `1` 关闭动态拉取，只用 models.json 静态表 | 未设 = 启用 |
+| `DSH_CODEBUDDY_UA_VERSION` | `/v3/config` 请求 UA 里的 CLI 版本号 | `2.137.1` |
 
 ## Token 续期策略
 
@@ -54,15 +57,31 @@ CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请
   并发写会互相覆盖；官方进程下次会自行刷新落盘。
 - 请求遇到 401 会自动失效缓存、重读文件重试一次（处理"别的进程刚换过 token"的竞态）。
 
-## 模型清单
+## 模型清单（动态目录 + 静态兜底）
 
-`models.json` 外置可编辑（格式与 zen 一致）：`id` / `name` / `contextWindow` /
-`reasoningEfforts`（null = 不发该字段）/ `input`（含 `"image"` 且模型支持视觉时
-走原生多模态 `image_url`）。上下文窗口为估值，按你的订阅实际能力修改。
+插件启动即向 `GET {base}/v3/config` 拉取官方实时模型目录（逆向自官方
+CloudProductManager；需账号凭据 + `CLI/<ver> CodeBuddy/<ver>` UA），并取
+cli agent 的模型白名单过滤出可对话模型，**内存热替换、无需重启 dsh**：
+
+- 上下文窗口 / 最大输出 / 视觉能力（`supportsImages`）按上游真实数据；
+- reasoning 档位优先用上游 `reasoning.supportedEfforts` 声明
+  （如 `hy4-preview` 仅 `high`、`glm-5.3-flash` 为 `low/high/max`），
+  未声明才回退保守白名单——不会发出上游不收的档位；
+- 默认每 6 小时刷新（`DSH_CODEBUDDY_MODELS_REFRESH_H`）；拉取失败沿用旧目录，
+  连续失败按 30s→5min 指数退避（参照官方 ModelsProductProvider）；
+  `DSH_CODEBUDDY_DISABLE_MODEL_FETCH=1` 完全关闭。
+
+`models.json` 是**静态兜底 + 覆盖层**：目录拉不到（无会话/断网/关闭拉取）时
+用它；其中与上游同名的条目，其 `reasoningEfforts` / `description` 声明优先。
+格式与 zen 一致：`id` / `name` / `contextWindow` / `reasoningEfforts`
+（null = 不发该字段）/ `input`（含 `"image"` 且模型支持视觉时走原生多模态
+`image_url`）。
 
 默认收录（来自 CodeBuddy CLI 的模型目录）：
 `hy3`、`deepseek-v4-pro`、`deepseek-v4-flash`、`kimi-k3-1`、`kimi-k2.7`、`kimi-k2.6`、
-`glm-5.3`、`glm-5.2`、`glm-5.1`、`glm-5v-turbo`（视觉）、`minimax-m3`、`minimax-m2.7`。
+`glm-5.3`、`glm-5.2`、`glm-5.1`、`glm-5v-turbo`（视觉）、`minimax-m3`、`minimax-m2.7`；
+动态目录启用后实际清单以 `/v3/config` 白名单为准（当前含
+`hy4-preview(-x)`、`hy3-x`、`glm-5.3-flash` 等 16 个）。
 
 ## 稳定性
 
@@ -86,3 +105,6 @@ CodeBuddy 官方客户端内部就是一个 axios 拦截器，给每个后端请
 - `POST /v2/chat/completions`（hy3，stream）→ 200，OpenAI 兼容 SSE
   （`delta.content` / `reasoning_content` / `tool_calls` / `[DONE]`）
 - `stream_options` / `tools` / `reasoning_effort` 字段网关均接受
+- `GET /v3/config` 带 Bearer + CLI UA → 200：28 个模型、1 个 cli agent 白名单
+  16 个可对话模型；各模型 `maxInputTokens` / `maxOutputTokens` /
+  `supportsImages` / `reasoning.supportedEfforts` 能力位齐全

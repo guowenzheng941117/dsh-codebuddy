@@ -1,7 +1,7 @@
 {
   "name": "dsh-codebuddy",
   "description": "CodeBuddy (Tencent Cloud account) provider for DeepSeek Harness: reuses the local one-time web-auth session, quota on your CodeBuddy subscription.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "commonjs",
   "main": "lib/index.js",
   "exports": {
