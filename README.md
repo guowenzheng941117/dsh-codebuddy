@@ -79,6 +79,7 @@ CodeBuddy `/v3/config` 给出的数值普遍偏保守甚至错误，本插件按
 | `hy3` / `hy3-x` | 192K / 64K | **256K 上下文 / 128K 输出** |
 | `hy4-preview(-x)` | 1M / 64K | 1M 上下文（770B 参数，输出维持 64K） |
 | `deepseek-v4-pro` / `-flash` | 1M / 50K | **1M 上下文 / 384K 输出** |
+| `deepseek-v4.1-flash` | 1M / 128K | 1M 上下文 / 128K 输出，**支持视觉**（实测确认） |
 | `glm-5.3` / `-flash` / `glm-5.2` | 1M / 48K（flash 32K） | **1M 上下文 / 128K 输出**，档位 low/high/max |
 | `glm-5.1` | 200K / 48K | **202745 上下文 / 128K 输出** |
 | `glm-5v-turbo` | 200K / 64K | 200K 上下文 / **128K 输出** |
@@ -103,6 +104,42 @@ CodeBuddy `/v3/config` 给出的数值普遍偏保守甚至错误，本插件按
 `disabledMultimodal` 否决）；静态条目由内置映射自动补齐——
 `models.json` 里不再需要手写 `"input": ["text", "image"]`。
 
+### 图像预算与超限处置：与官方完全对齐
+
+图像的重活（按预算缩放、质量阶梯编码、缓存、singleflight）**全部复用核心
+附件服务** `ctx.attachments.readImageRequest`，本插件不自己解码图片。在此之上，
+预算取值与超限处置与官方 `@deepseek-ai/dsh-llm-deepseek` 保持一致：
+
+**单模型预算**（`resolveRequestImagePolicy`）：像素与字节预算取自模型自身声明，
+未声明时用官方默认值：
+
+| 字段 | 取值 |
+| --- | --- |
+| `imagePixelBudget` | 数字，或 `"low"` → `512×512`；缺省 `640000` |
+| `imageMaxBytes` | 数字；缺省 `1024 * 1024`（1 MiB） |
+
+> 该函数是官方 DeepSeek adapter 的**私有实现**（未从 `@deepseek-ai/dsh-llm` 导出），
+> 故按上游源码 1:1 复刻，并已逐用例比对确认与官方输出一致。
+
+**超限卸载**（与官方内联 base64 路径同策略）：请求历史里的图像超过
+`maxImages` / `maxBytes` 时，**按请求序把最老的图替换为文字占位符**，
+并按 `countQuantum` / `byteQuantum` 成批移除（避免抖动）：
+
+| 参数 | 官方默认值 |
+| --- | --- |
+| `maxBytes`（内联累计） | `20 * 1024 * 1024` |
+| `maxImages` | `600` |
+| `byteQuantum` | `10 * 1024 * 1024` |
+| `countQuantum` | `20` |
+| 单图计入字节 | `min(ref.bytes, imageMaxBytes)` |
+
+占位符优先调用核心导出的 `offloadedImageText`；**优先调用核心导出的
+`offloadRequestImagesWithPolicy`**，只有在核心解析不到时（插件是 link 安装、
+自身 `node_modules` 无核心包）才退回本地复刻——两者已比对为逐字节一致。
+
+**红线**：本地复刻与常量仅作核心不可用时的兜底。dsh 升级后若上游调整了这些
+默认值或语义，必须同步核对本插件，保持与官方一致。
+
 ### models.json（静态兜底 + 覆盖层）
 
 目录拉不到（无会话/断网/关闭拉取）时用它；与上游同名的条目其
@@ -111,7 +148,7 @@ CodeBuddy `/v3/config` 给出的数值普遍偏保守甚至错误，本插件按
 （含 `"reasoningEfforts": null` = 关闭）则作为人工覆盖生效。
 
 默认收录（来自 CodeBuddy CLI 的模型目录）：
-`hy3`、`deepseek-v4-pro`、`deepseek-v4-flash`、`kimi-k3-1`、`kimi-k2.7`、`kimi-k2.6`、
+`hy3`、`deepseek-v4-pro`、`deepseek-v4-flash`、`deepseek-v4.1-flash`（视觉）、`kimi-k3-1`、`kimi-k2.7`、`kimi-k2.6`、
 `glm-5.3`、`glm-5.2`、`glm-5.1`、`glm-5v-turbo`（视觉）、`minimax-m3`、`minimax-m2.7`；
 动态目录启用后实际清单以 `/v3/config` 白名单为准（当前含
 `hy4-preview(-x)`、`hy3-x`、`glm-5.3-flash` 等 16 个）。

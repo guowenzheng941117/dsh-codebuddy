@@ -25,6 +25,42 @@
 - **绝不提交凭据**：`accessToken` / `refreshToken` / 会话文件 / `.env` / `.netrc` 一律不进版本库（`.gitignore` 已屏蔽部分）。远程推送用的 token 只放本地 `.git/config` 的 URL 重写，不追踪。
 - 需要手工注入时走环境变量 `DSH_CODEBUDDY_ACCESS_TOKEN`（+可选 `DSH_CODEBUDDY_USER_ID`/`DSH_CODEBUDDY_DOMAIN`），不要写死进代码。
 
+## 版本跟随（dsh 升级后必做）
+
+**本插件的 dsh 依赖版本必须跟随宿主 dsh 的升级，一次都不能落下。** dsh 宿主升级后，
+`package.json` 的 `peerDependencies` 里 `@deepseek-ai/*` 版本必须同步 bump 到宿主实际
+安装的版本——不是"能兼容就行"，而是保持声明与运行实况一致。
+
+宿主版本的唯一事实来源（读取命令）：
+
+```sh
+node -p "require('/root/.nvm/versions/node/v24.18.0/lib/node_modules/@deepseek-ai/dsh/package.json').version"
+node -p "require('/root/.nvm/versions/node/v24.18.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm/package.json').version"
+```
+
+各 peer 与宿主的对应关系：
+
+| peer 字段 | 宿主提供 | 说明 |
+| --- | --- | --- |
+| `@deepseek-ai/dsh-llm` | `dsh/node_modules/@deepseek-ai/dsh-llm` | 随 dsh 版本 bump（当前 `0.1.5-rc.1`） |
+| `@deepseek-ai/cordis` | 同上 | 独立版本号（当前 `4.0.2`），随宿主走 |
+| `@deepseek-ai/schemastery` | 同上 | 独立版本号（当前 `3.18.2`），随宿主走 |
+
+**红线**：
+
+- 这些包**只能出现在 `peerDependencies`，绝不能进 `dependencies`**。写进 dependencies 会让
+  pnpm 在插件目录装出第二份副本，与宿主实例不是同一个模块——服务注册与类型判断会错乱。
+- 用 `^` 范围（如 `^0.1.5-rc.1`），不要锁死精确版本：预发布段（alpha/rc）持续滚动，
+  锁死会在 dsh 升到下一个 rc 时误报不兼容。
+- dsh 升级改完 peer 后要重启 `dsh web` 并跑一次冒烟测试确认 `SMOKE PASS`。
+
+升级检查清单：
+
+1. 读宿主 `@deepseek-ai/dsh` 与 `dsh-llm` 的实际版本；
+2. 同步 `package.json` 的 peer 版本；
+3. 确认 `models.json` / `BUILTIN_CAPABILITIES` 没有因上游目录变化而缺模型；
+4. `git diff` 只含预期文件，提交。
+
 ## 模型元数据（单一事实来源）
 
 模型能力来自三层，优先级严格为：
@@ -39,6 +75,28 @@
 - **`vision` 能力必须实测确认，不可轻信上游 `supportsImages` 或推理模型「应该支持」**。本仓库曾批量把 hy3/glm-5.x/kimi-k2.x/minimax-m2.7 的 `vision` 由 `true` 校正为 `false`——改动 vision 前要先用真实多模态请求验证，否则保持原值。
 - **思考档位 `efforts`**：网关接受度实测宽于上游声明（如 `hy4-preview` 上游仅 `high`，实测 `low/max` 均 200 且真实产出思考），故 `low/high/max` 为常态，不要因上游未声明就收窄。
 - 改 `BUILTIN_CAPABILITIES` 或 `models.json` 后，同步更新 README 的「上下文 / 输出 / 思考档位」对照表，保持文档与代码一致。
+
+## 图像预算与超限处置（与官方对齐，红线）
+
+图像的重活（缩放 / 编码 / 缓存 / singleflight）**一律复用核心**
+`ctx.attachments.readImageRequest`，**不要自己解码、缩放或重编码图片**。
+预算取值与超限处置必须与官方 `@deepseek-ai/dsh-llm-deepseek` 保持一致：
+
+- **单模型预算** `resolveRequestImagePolicy(model)`：`imagePixelBudget`（数字或
+  `"low"` → `512×512`，缺省 `640000`）、`imageMaxBytes`（缺省 `1 MiB`）。
+  官方**未从 `@deepseek-ai/dsh-llm` 导出**此函数，故按上游源码 1:1 复刻——
+  改动前先对照上游 `dsh-llm-deepseek` 的 `resolveRequestImagePolicy`。
+- **超限卸载**：优先调用核心导出的 `offloadRequestImagesWithPolicy`；仅当核心
+  解析不到时退回本地复刻 `offloadImagesLocal`。参数取官方内联 base64 路径默认值：
+  `maxBytes: 20MiB`、`maxImages: 600`、`byteQuantum: 10MiB`、`countQuantum: 20`、
+  单图计入 `min(ref.bytes, imageMaxBytes)`。占位符用核心 `offloadedImageText`。
+- **核心解析手法**：插件是 `link:` 安装，自身 `node_modules` 里**没有**核心包，
+  故 `coreLlm()` 按 dsh 安装位置解析（`createRequire(<dsh>/package.json)`，
+  失败再退化为绝对路径 require）。**不要**把 `@deepseek-ai/dsh-llm` 写进
+  `dependencies`（见「版本跟随」红线）。
+- **等价性验证**：改动这两个函数后，必须与官方实现逐用例比对（策略输出、
+  offload 结果逐字节一致），并跑一次真实多模态请求确认未被破坏。
+- dsh 升级后若上游调整了这些默认值或语义，**必须同步核对本插件**。
 
 ## 环境变量约定
 

@@ -13,6 +13,12 @@
       "description": "DeepSeek V4 Pro（推理 + 工具调用）"
     },
     {
+      "id": "deepseek-v4.1-flash",
+      "name": "DeepSeek V4.1 Flash",
+      "contextWindow": 1000000,
+      "description": "DeepSeek V4.1 Flash（快速档，支持视觉）"
+    },
+    {
       "id": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",
       "contextWindow": 1000000,
